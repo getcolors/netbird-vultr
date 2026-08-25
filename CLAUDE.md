@@ -22,19 +22,24 @@ npx skills update -p
 cp .agents/skills/package-netbird-green/green green
 ```
 
-## Two accounts, on purpose
+## Two accounts, and only one is the network
 
-`netbird-owner-email` (`claude@ululi.it`) is the Authentik-backed owner.
-`netbird-bootstrap-email` (`breakglass@bigconfig.online`) is a break-glass
-administrator on NetBird's embedded IdP. Validation refuses them being equal:
-one address for both would make the recovery path depend on the identity
-provider it exists to survive.
+`netbird-bootstrap-email` (`breakglass@bigconfig.online`) owns a *local*
+account, created by `POST /api/setup` because registering an identity provider
+needs an authenticated caller. `netbird-authentik-bootstrap-email`
+(`claude@ululi.it`, Authentik's `akadmin`) owns the account this deployment
+actually runs.
 
-A first converge cannot create the owner — NetBird imports an external user
-only after it has authenticated once — so it reports a pending manual step and
-exits zero. Sign in once through Authentik, converge again, and the transfer
-completes. Do not "fix" this by deleting the break-glass account, which is what
-the upstream article does.
+They do not merge, and NetBird offers no way to merge them: `POST /api/users`
+creates a local user in the local account, and `netbird-server admin` only
+manages embedded-IdP identities. **The local account is not a way back into the
+federated network.** If Authentik is lost, restore from backup or register a
+replacement identity provider with the credential at
+`/etc/netbird/secrets/local_pat`.
+
+Convergence creates the federated account itself by driving the OAuth2 flow
+through Authentik's flow-executor API, so a first converge needs no browser and
+reports no pending step.
 
 ## Do not
 

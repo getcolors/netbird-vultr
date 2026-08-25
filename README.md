@@ -23,29 +23,23 @@ direnv allow               # once, after cloning
 
 ## Signing in
 
-Two accounts exist, deliberately.
+Sign in at https://netbird.bigconfig.online/ with the **Authentik** option, as
+`claude@ululi.it` — Authentik's `akadmin`, with
+`COLORS_PAR_NETBIRD_AUTHENTIK_BOOTSTRAP_PASSWORD`. That account owns the
+deployment, and convergence creates it for you by performing that sign-in
+itself; there is no manual step.
 
-**`claude@ululi.it` through Authentik** is the owner. On a first converge it
-does not exist yet — NetBird only imports an external user after it has
-authenticated once — so convergence reports a pending manual step:
+**Two accounts exist, and only one is the network.** `POST /api/setup` creates
+`breakglass@bigconfig.online` in a *local* account, because registering an
+identity provider needs an authenticated caller and that is the only way to get
+the first one. A user arriving through Authentik gets a *separate* account, and
+NetBird provides no way to merge them.
 
-1. Open https://netbird.bigconfig.online/ and choose **Authentik**.
-2. Sign in as `claude@ululi.it`.
-3. Run `./green create` again.
-
-The second run approves that user, promotes it to owner and asserts the role.
-
-**`breakglass@bigconfig.online`** is the break-glass administrator on NetBird's
-embedded IdP, with `COLORS_PAR_NETBIRD_BOOTSTRAP_PASSWORD`. It is kept on
-purpose: it is the only way in when Authentik is unavailable, which is exactly
-when an Authentik-only account is no use. After ownership transfers it is an
-administrator rather than the owner — promotion transfers ownership rather than
-adding a second owner.
-
-Authentik's own admin is `akadmin` with
-`COLORS_PAR_NETBIRD_AUTHENTIK_BOOTSTRAP_PASSWORD`, at
-https://authentik.bigconfig.online/if/admin/. Its bootstrap token is revoked
-once the blueprint has applied.
+So the local account is **not** a way back into the network. If Authentik is
+unavailable, recover by restoring from backup (`netbird-restore`), or by
+registering a replacement identity provider with the local credential at
+`/etc/netbird/secrets/local_pat`. Authentik's admin interface is at
+https://authentik.bigconfig.online/if/admin/.
 
 ## Adding peers
 
