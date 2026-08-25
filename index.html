@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Desired state for a self-hosted NetBird control plane with Authentik on Vultr: Traefik, the combined netbird-server, the dashboard, and Authentik with its Postgres and Redis, on one guarded instance.">
+  <title>netbird-vultr — getcolors deployment</title>
+  <style>
+    :root{color-scheme:light;--ink:#1f2328;--muted:#59636e;--line:#d0d7de;--soft:#f6f8fa;--blue:#0969da;--green:#1a7f37}*{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:920px;margin:auto;padding:64px 28px 100px}h1{font-size:48px;line-height:1.05;margin:0}h2{margin-top:54px;padding-bottom:8px;border-bottom:1px solid var(--line)}.lead{font-size:20px;color:var(--muted);max-width:790px}code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}pre{padding:18px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--soft)}:not(pre)>code{padding:.12em .35em;border-radius:5px;background:var(--soft)}a{color:var(--blue)}.eyebrow{color:var(--green);font-weight:700;letter-spacing:.08em}.callout{padding:16px 18px;border-left:4px solid var(--green);background:#dafbe1}.warn{padding:16px 18px;border-left:4px solid #bf8700;background:#fff8c5}@media(max-width:650px){main{padding-top:38px}h1{font-size:36px}}
+  </style>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-4VKP1WY4QJ"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-4VKP1WY4QJ',{page_title:'netbird-vultr — getcolors deployment'});</script>
+<script src="https://rybbit.getcolors.ai/api/script.js" data-site-id="9fb9c41a6d49" defer></script>
+</head>
+<body><main>
+  <p class="eyebrow">DEPLOYMENT · VULTR · ZERO TRUST · SSO</p>
+  <h1>netbird-vultr</h1>
+  <p class="lead">Desired state for one self-hosted NetBird control plane and its identity provider: Traefik, the combined <code>netbird-server</code>, the dashboard, and Authentik with its Postgres and Redis, on a single guarded Vultr instance in Amsterdam.</p>
+
+  <div class="callout"><strong>One process, four services.</strong> <a href="https://netbird.bigconfig.online">netbird.bigconfig.online</a> carries the dashboard, the REST API, the management and signal gRPC streams, the relay WebSocket and the embedded IdP, all multiplexed behind Traefik on 443. <a href="https://authentik.bigconfig.online">authentik.bigconfig.online</a> is Authentik, routed by the same Traefik. STUN is bundled into the server on one UDP port; there is no coturn container and no legacy relay port range.</div>
+
+  <h2>What is tracked here</h2>
+  <p><code>colors.yml</code> (the only editable desired state), the installed <a href="https://github.com/getcolors/netbird">netbird Package Skill</a> payload and lockfile, a root launcher copied from that payload, toolchain files, and documentation. Credentials live in gitignored <code>.envrc.private</code>; generated output in <code>.colors/</code> is never committed.</p>
+
+  <h2>Lifecycle</h2>
+  <pre><code>direnv allow
+./green build
+./green create --dry-run
+./green create</code></pre>
+  <p>Build and dry-run are credential-free and never read <code>~/.ssh</code>. Real creation converges the instance, its firewall, two unproxied Cloudflare records and the Compose stack, then bootstraps the first owner, registers Authentik as an identity provider, and proves the data plane by enrolling two throwaway peers on isolated networks and checking traffic flows over the relay. Deletion stays guarded by <code>compute-prevent-destroy: true</code>.</p>
+
+  <h2>Two accounts, on purpose</h2>
+  <p><code>claude@ululi.it</code> signs in through Authentik and owns the installation. <code>breakglass@bigconfig.online</code> is a break-glass administrator on NetBird's embedded IdP — the only way in when Authentik is unavailable, which is exactly when an Authentik-only account is no use. Desired state refuses the two being equal.</p>
+  <div class="callout warning"><strong>The first converge cannot finish the transfer.</strong> NetBird imports an external user only after it has authenticated once, so the run reports a pending manual step and exits zero. Sign in once at the dashboard with the Authentik option, then converge again: the second run approves that user, promotes it to owner and reads the role back.</div>
+
+  <h2>The machine keypair is not in this repository</h2>
+  <div class="warn">This deployment runs in <strong>keygen mode</strong>: <code>colors.yml</code> carries no <code>vultr-ssh-keys</code>, so the package generates and owns <code>~/.ssh/netbird-vultr</code> outside the checkout. Cloning this repository elsewhere does not carry machine access — copy the keypair deliberately, or <code>create</code> refuses rather than regenerating a key that cannot reach the live host.</div>
+
+  <h2>Reaching the host</h2>
+  <p>Convergence writes one <code>~/.ssh/config</code> block following the workspace SSH Config Standard, so <code>ssh netbird-vultr</code> connects with no address, user or <code>-i</code> flag. The block sits at the top of the file, above any <code>Host *</code> stanza that would otherwise win on <code>User</code> and <code>IdentityFile</code>, and <code>delete</code> removes it before destroying the instance.</p>
+
+  <h2>Secrets</h2>
+  <p>Most of what this deployment holds is generated on the server and supplied by nobody: the relay <code>authSecret</code>, the session cookie key, the store encryption key, Authentik's <code>SECRET_KEY</code> and database password, the OIDC client secret, and the durable API token. All are create-once — regenerating any of them breaks a running stack while every container stays green.</p>
+  <p>The backup recovery key is the deliberate exception. Archives carry the whole restore set, so they are encrypted before they leave the host, and the key that decrypts them is operator-supplied rather than generated there: a key generated on the server would be lost with the server it protects.</p>
+
+  <h2>Source</h2>
+  <p><a href="https://github.com/getcolors/netbird-vultr">This deployment on GitHub</a> · <a href="https://github.com/getcolors/netbird">Package Skill source</a></p>
+</main></body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "package-netbird-green": {
+      "source": "getcolors/netbird",
+      "sourceType": "github",
+      "skillPath": "skills/package-netbird-green/SKILL.md",
+      "computedHash": "ee89fcfae0b5d42b554eea981591141b110e23d17a808340efa8289ed2b72de1"
+    }
+  }
+}

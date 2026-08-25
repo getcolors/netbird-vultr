@@ -1,0 +1,130 @@
+# Desired state for netbird-vultr. Non-secret values only.
+# Credentials belong in the gitignored .envrc.private as COLORS_PAR_* variables.
+# Never export COLORS_PAR_PROFILE: it selects this deployment's remote state.
+#
+# Required credentials:
+#   Vultr           COLORS_PAR_VULTR_API_KEY
+#   Cloudflare      COLORS_PAR_CLOUDFLARE_API_TOKEN
+#                   (edit rights on the bigconfig.online zone)
+#   state in R2     COLORS_PAR_R2_ACCESS_KEY_ID
+#                   COLORS_PAR_R2_SECRET_ACCESS_KEY
+#   backups in R2   COLORS_PAR_NETBIRD_BACKUP_R2_ACCESS_KEY_ID
+#                   COLORS_PAR_NETBIRD_BACKUP_R2_SECRET_ACCESS_KEY
+#   backup crypto   COLORS_PAR_NETBIRD_BACKUP_RECOVERY_KEY
+#   accounts        COLORS_PAR_NETBIRD_BOOTSTRAP_PASSWORD
+#                   COLORS_PAR_NETBIRD_AUTHENTIK_BOOTSTRAP_PASSWORD
+#
+# Everything else is generated on the server and supplied by nobody: the relay
+# secret, the session cookie key, the store encryption key, Authentik's
+# SECRET_KEY and database password, the OIDC client secret, and the durable
+# automation token. The backup recovery key is the deliberate exception — a key
+# generated on the server would be lost with the server it protects, so it is
+# operator-supplied and must be kept somewhere other than this host.
+
+profile: netbird-vultr
+workdir: .colors
+
+provider-compute: vultr
+provider-dns: cloudflare
+provider-backend: r2
+
+# Preserve this guard in committed desired state. Destruction requires an
+# explicitly authorized one-run override; never edit this flag to bypass it.
+compute-prevent-destroy: true
+
+# --- NetBird -----------------------------------------------------------------
+
+# One host carries the dashboard, the management and signal gRPC streams, the
+# relay WebSocket, the REST API and the embedded Dex IdP: the combined
+# netbird-server multiplexes all of them behind Traefik on 443.
+netbird-host: netbird.bigconfig.online
+
+# Authentik on its own name in the same zone, routed by Traefik directly. The
+# upstream article tunnels it through NetBird's own reverse proxy with a
+# sidecar client instead; that needs a setup key which only exists after a
+# human has logged in, and it makes NetBird's auth callbacks depend on a
+# service reachable only through NetBird.
+netbird-authentik-host: authentik.bigconfig.online
+
+netbird-letsencrypt-email: claude@ululi.it
+
+# The account that ends up owning this installation. It must sign in through
+# Authentik once before ownership transfers to it; until then the break-glass
+# administrator stays owner and `./green create` reports the pending step.
+netbird-owner-email: claude@ululi.it
+
+# The break-glass administrator, created through the embedded IdP during
+# bootstrap and deliberately kept afterwards — it is the way back in when
+# Authentik is unavailable, which is exactly when an Authentik-only account is
+# no use. Password: COLORS_PAR_NETBIRD_BOOTSTRAP_PASSWORD.
+netbird-bootstrap-email: breakglass@bigconfig.online
+netbird-bootstrap-name: Break Glass
+
+# Authentik's own first administrator (akadmin). Its password and API token
+# reach the stack only while Authentik has never been initialised; afterwards
+# they are removed from the running configuration and the token is revoked.
+netbird-authentik-bootstrap-email: claude@ululi.it
+
+# The OAuth2 client id declared in the Authentik blueprint and handed to
+# NetBird's identity-providers API. The id is deterministic; the client secret
+# beside it is generated on this host and never leaves it.
+netbird-oidc-client-id: netbird
+
+netbird-stun-port: 3478
+netbird-log-level: info
+netbird-docker-subnet: 172.30.0.0/24
+
+# Container images, one key per service. Explicit tags are mandatory: this
+# package owns its templates rather than running the upstream installer, so
+# nothing tells it when a floating tag moves underneath it. Move the NetBird
+# server and client together — they are one release train.
+netbird-server-image: netbirdio/netbird-server:0.77.1
+netbird-dashboard-image: netbirdio/dashboard:v2.91.1
+netbird-client-image: netbirdio/netbird:0.77.1
+netbird-traefik-image: traefik:v3.7.11
+netbird-authentik-image: ghcr.io/goauthentik/server:2026.8.0
+netbird-authentik-postgres-image: postgres:16.15
+netbird-authentik-redis-image: redis:7.4.11
+
+# --- Backups -----------------------------------------------------------------
+
+# The whole restore set: the peer store, Authentik's database, the generated
+# secrets, Traefik's ACME state. Encrypted on the host before upload, written
+# under an immutable timestamped key, verified, and only then pointed at by
+# `latest-known-good`. Losing the store means every enrolled peer must
+# re-enroll, so this is not optional.
+netbird-backup-dir: /var/backups/netbird
+netbird-backup-r2-bucket: netbird-backup
+netbird-backup-r2-endpoint: https://319271fed8bc6d2d9059362be1165f37.eu.r2.cloudflarestorage.com
+netbird-backup-r2-region: auto
+netbird-backup-oncalendar: "*-*-* 02:30:00"
+netbird-backup-retention-days: 7
+
+# --- Vultr -------------------------------------------------------------------
+
+# No vultr-name: per workspace standards/compute-name.md the machine and its
+# firewall are named after the profile. This package is born conforming, so
+# there is no name key to keep in step with the profile.
+vultr-region: ams
+vultr-plan: vc2-4c-8gb
+vultr-os-id: 2284
+
+# No vultr-ssh-keys: keygen mode per workspace standards/ssh-keypair.md. The
+# package generates and owns ~/.ssh/netbird-vultr and registers the account key
+# resource named after the profile. Setting vultr-ssh-keys here would switch to
+# opt-out mode, where the package touches no key material at all.
+
+vultr-ssh-sources:
+  - 0.0.0.0/0
+vultr-http-sources:
+  - 0.0.0.0/0
+# STUN, the only UDP published. The combined server bundles it, so there is no
+# coturn container and no legacy 49152-65535 relay range: relayed traffic rides
+# the WebSocket on 443.
+vultr-stun-sources:
+  - 0.0.0.0/0
+
+# --- R2 state backend ---------------------------------------------------------
+
+r2-bucket: tofu-state-319271fed8bc6d2d9059362be1165f37-eu
+r2-endpoint: https://319271fed8bc6d2d9059362be1165f37.eu.r2.cloudflarestorage.com
