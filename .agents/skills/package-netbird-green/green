@@ -11,8 +11,8 @@
 ;; machine keypair and cloud resources, and overriding it from the environment
 ;; can only point netbird at another project's state.
 ;;
-;; This file is both the skill payload and the repository entry point — ./green
-;; in the project root is a symlink to it. It deliberately holds no logic of its
+;; This file is both the skill payload and the repository entry point — green/green
+;; in the repository is a symlink to it. It deliberately holds no logic of its
 ;; own: validation, the graph and the steps all live in the `netbird`
 ;; library, where the test suite reaches them. A copied payload is the one place
 ;; in this project where code cannot be tested, so nothing that can live
@@ -51,7 +51,7 @@
 ;; cannot resolve its own library says so rather than inventing a SHA or
 ;; silently falling back to whatever is lying around. `bb pin` refuses to stamp
 ;; a dirty or unpushed HEAD for the same reason.
-(def ^:private netbird-sha "7b0f784a17d453e0b2ec726d9a37e84db78e84d4")
+(def ^:private netbird-sha "1c95ceb54cbd4b0862261340c11bc8c88accf34f")
 
 (def ^:private netbird-git-url "https://github.com/getcolors/netbird.git")
 (def ^:private green-git-url "https://github.com/getcolors/green.git")
@@ -70,7 +70,7 @@
 
 (def ^:private bootstrap-error
   (when (and (System/getProperty "babashka.version") (not resolved?))
-    (let [netbird (lib-coord "NETBIRD_LIB_ROOT" netbird-git-url netbird-sha nil)
+    (let [netbird (lib-coord "NETBIRD_LIB_ROOT" netbird-git-url netbird-sha "green")
           green (lib-coord "GREEN_LIB_ROOT" green-git-url nil nil)
           once (lib-coord "ONCE_LIB_ROOT" once-git-url nil "green")]
       (if-not netbird
